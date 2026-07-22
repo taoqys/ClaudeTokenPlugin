@@ -8,7 +8,11 @@ public:
     enum ItemType
     {
         ITEM_TOTAL,     // Today's total tokens
-        ITEM_COUNT = 1
+        ITEM_INPUT,     // Today's input tokens
+        ITEM_OUTPUT,    // Today's output tokens
+        ITEM_CACHE,     // Today's cache read tokens
+        ITEM_MESSAGES,  // Today's message count
+        ITEM_COUNT
     };
 
     explicit ClaudeTokenItem(ItemType type);
@@ -22,14 +26,17 @@ public:
 
     // Called by plugin to update data
     void SetValue(long long value);
+    void SetShowLabel(bool show);
+    void SetNumberFormat(int fmt);  // 0=short, 1=raw
 
 private:
     ItemType m_type;
     long long m_value{};
     std::wstring m_valueText;
-    std::wstring m_name;
-    std::wstring m_id;
-    std::wstring m_label;
+    bool m_showLabel = true;
+    int m_numberFormat = 0;  // 0=short, 1=raw
 
-    static const wchar_t* FormatTokens(long long n, std::wstring& buf);
+    void UpdateValueText();
+    static const wchar_t* FormatShort(long long n, std::wstring& buf);
+    static const wchar_t* FormatRaw(long long n, std::wstring& buf);
 };
