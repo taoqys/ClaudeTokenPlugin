@@ -49,6 +49,10 @@ private:
 
     PluginSettings m_settings;
 
+    // Refresh interval tracking
+    int m_tickCount = 0;
+    DWORD m_lastRefreshTime = 0;
+
     // Dialog callback
     static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam);
 };

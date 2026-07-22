@@ -8,6 +8,7 @@ struct PluginSettings
     int numberFormat = 0;       // 0=Short (1.2M), 1=Raw (1234567)
     int showLabel = 1;          // 0=hide, 1=show
     int showTooltipDetail = 1;  // 0=hide, 1=show
+    int refreshInterval = 10;   // seconds between cache re-reads
     wchar_t cachePath[MAX_PATH] = L"";  // Empty = default path
 
     void Load(const std::wstring& iniPath)
@@ -16,6 +17,9 @@ struct PluginSettings
         numberFormat = GetPrivateProfileIntW(L"Settings", L"NumberFormat", 0, iniPath.c_str());
         showLabel = GetPrivateProfileIntW(L"Settings", L"ShowLabel", 1, iniPath.c_str());
         showTooltipDetail = GetPrivateProfileIntW(L"Settings", L"ShowTooltipDetail", 1, iniPath.c_str());
+        refreshInterval = GetPrivateProfileIntW(L"Settings", L"RefreshInterval", 10, iniPath.c_str());
+        if (refreshInterval < 1) refreshInterval = 1;
+        if (refreshInterval > 300) refreshInterval = 300;
         GetPrivateProfileStringW(L"Settings", L"CachePath", L"", cachePath, MAX_PATH, iniPath.c_str());
     }
 
@@ -30,6 +34,8 @@ struct PluginSettings
         WritePrivateProfileStringW(L"Settings", L"ShowLabel", buf, iniPath.c_str());
         swprintf_s(buf, L"%d", showTooltipDetail);
         WritePrivateProfileStringW(L"Settings", L"ShowTooltipDetail", buf, iniPath.c_str());
+        swprintf_s(buf, L"%d", refreshInterval);
+        WritePrivateProfileStringW(L"Settings", L"RefreshInterval", buf, iniPath.c_str());
         WritePrivateProfileStringW(L"Settings", L"CachePath", cachePath, iniPath.c_str());
     }
 };

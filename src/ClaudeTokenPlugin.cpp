@@ -15,6 +15,7 @@
 #define IDC_CHECK_LABEL     1003
 #define IDC_CHECK_TOOLTIP   1004
 #define IDC_EDIT_CACHEPATH  1005
+#define IDC_EDIT_REFRESH    1006
 
 // Extended dialog template structures (not in standard headers)
 #pragma pack(push, 1)
@@ -112,7 +113,13 @@ IPluginItem* ClaudeTokenPlugin::GetItem(int index)
 
 void ClaudeTokenPlugin::DataRequired()
 {
-    LoadCache();
+    // Only re-read cache at the configured refresh interval
+    DWORD now = GetTickCount();
+    if (m_lastRefreshTime == 0 || (now - m_lastRefreshTime) >= (DWORD)(m_settings.refreshInterval * 1000))
+    {
+        LoadCache();
+        m_lastRefreshTime = now;
+    }
 }
 
 void ClaudeTokenPlugin::ApplySettings()
@@ -285,6 +292,11 @@ INT_PTR CALLBACK ClaudeTokenPlugin::DialogProc(HWND hDlg, UINT msg, WPARAM wPara
         // Cache path
         SetDlgItemTextW(hDlg, IDC_EDIT_CACHEPATH, pSettings->cachePath);
 
+        // Refresh interval
+        wchar_t refreshBuf[16];
+        swprintf_s(refreshBuf, L"%d", pSettings->refreshInterval);
+        SetDlgItemTextW(hDlg, IDC_EDIT_REFRESH, refreshBuf);
+
         return TRUE;
     }
 
@@ -298,6 +310,15 @@ INT_PTR CALLBACK ClaudeTokenPlugin::DialogProc(HWND hDlg, UINT msg, WPARAM wPara
             pSettings->showLabel = IsDlgButtonChecked(hDlg, IDC_CHECK_LABEL) == BST_CHECKED ? 1 : 0;
             pSettings->showTooltipDetail = IsDlgButtonChecked(hDlg, IDC_CHECK_TOOLTIP) == BST_CHECKED ? 1 : 0;
             GetDlgItemTextW(hDlg, IDC_EDIT_CACHEPATH, pSettings->cachePath, MAX_PATH);
+
+            // Read refresh interval
+            wchar_t refreshBuf[16] = {};
+            GetDlgItemTextW(hDlg, IDC_EDIT_REFRESH, refreshBuf, 16);
+            int interval = _wtoi(refreshBuf);
+            if (interval < 1) interval = 1;
+            if (interval > 300) interval = 300;
+            pSettings->refreshInterval = interval;
+
             EndDialog(hDlg, IDOK);
             return TRUE;
         }
@@ -414,6 +435,8 @@ ITMPlugin::OptionReturn ClaudeTokenPlugin::ShowOptionsDialog(void* hParent)
     // Labels
     addControl(SS_LEFT, 0, 7, 7, 60, 12, 0xFFFF, 0x0082, L"Display Item:");
     addControl(SS_LEFT, 0, 7, 27, 60, 12, 0xFFFF, 0x0082, L"Number Format:");
+    addControl(SS_LEFT, 0, 7, 90, 60, 12, 0xFFFF, 0x0082, L"Cache Path:");
+    addControl(SS_LEFT, 0, 7, 110, 60, 12, 0xFFFF, 0x0082, L"Refresh (s):");
 
     // ComboBox: Display Item
     addControl(CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_VSCROLL, 0,
@@ -429,19 +452,25 @@ ITMPlugin::OptionReturn ClaudeTokenPlugin::ShowOptionsDialog(void* hParent)
     // Checkbox: Show Tooltip Detail
     addControl(BS_AUTOCHECKBOX, 0, 7, 68, 120, 12, IDC_CHECK_TOOLTIP, 0x0080, L"Show detailed tooltip");
 
-    // Label + Edit: Custom cache path
-    addControl(SS_LEFT, 0, 7, 90, 60, 12, 0xFFFF, 0x0082, L"Cache Path:");
+    // Edit: Custom cache path
     addControl(ES_AUTOHSCROLL | WS_BORDER, 0,
                75, 88, 175, 14, IDC_EDIT_CACHEPATH, 0x0081, L"");
 
+    // Edit: Refresh interval
+    addControl(ES_AUTOHSCROLL | WS_BORDER | ES_NUMBER, 0,
+               75, 108, 50, 14, IDC_EDIT_REFRESH, 0x0081, L"");
+
     // OK button
-    addControl(BS_DEFPUSHBUTTON, 0, 140, 115, 50, 14, IDOK, 0x0080, L"OK");
+    addControl(BS_DEFPUSHBUTTON, 0, 140, 135, 50, 14, IDOK, 0x0080, L"OK");
 
     // Cancel button
-    addControl(0, 0, 195, 115, 50, 14, IDCANCEL, 0x0080, L"Cancel");
+    addControl(0, 0, 195, 135, 50, 14, IDCANCEL, 0x0080, L"Cancel");
 
     // Update item count
-    pDlg->cDlgItems = 9;
+    pDlg->cDlgItems = 11;
+
+    // Make dialog taller
+    pDlg->cy = 220;
 
     PluginSettings tempSettings = m_settings;
     INT_PTR result = DialogBoxIndirectParamW(
@@ -458,6 +487,7 @@ ITMPlugin::OptionReturn ClaudeTokenPlugin::ShowOptionsDialog(void* hParent)
                         tempSettings.numberFormat != m_settings.numberFormat ||
                         tempSettings.showLabel != m_settings.showLabel ||
                         tempSettings.showTooltipDetail != m_settings.showTooltipDetail ||
+                        tempSettings.refreshInterval != m_settings.refreshInterval ||
                         wcscmp(tempSettings.cachePath, m_settings.cachePath) != 0);
 
         m_settings = tempSettings;
