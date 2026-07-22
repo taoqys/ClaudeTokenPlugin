@@ -1,4 +1,5 @@
 #include "ClaudeTokenPlugin.h"
+#include <windows.h>
 #include <fstream>
 #include <sstream>
 #include <string>
