@@ -9,6 +9,7 @@ struct PluginSettings
     int showLabel = 1;          // 0=hide, 1=show
     int showTooltipDetail = 1;  // 0=hide, 1=show
     int refreshInterval = 10;   // seconds between cache re-reads
+    int includeCacheRead = 0;   // 0=exclude cache_read from total, 1=include
     wchar_t cachePath[MAX_PATH] = L"";  // Empty = default path
 
     void Load(const std::wstring& iniPath)
@@ -20,6 +21,7 @@ struct PluginSettings
         refreshInterval = GetPrivateProfileIntW(L"Settings", L"RefreshInterval", 10, iniPath.c_str());
         if (refreshInterval < 1) refreshInterval = 1;
         if (refreshInterval > 300) refreshInterval = 300;
+        includeCacheRead = GetPrivateProfileIntW(L"Settings", L"IncludeCacheRead", 0, iniPath.c_str());
         GetPrivateProfileStringW(L"Settings", L"CachePath", L"", cachePath, MAX_PATH, iniPath.c_str());
     }
 
@@ -36,6 +38,8 @@ struct PluginSettings
         WritePrivateProfileStringW(L"Settings", L"ShowTooltipDetail", buf, iniPath.c_str());
         swprintf_s(buf, L"%d", refreshInterval);
         WritePrivateProfileStringW(L"Settings", L"RefreshInterval", buf, iniPath.c_str());
+        swprintf_s(buf, L"%d", includeCacheRead);
+        WritePrivateProfileStringW(L"Settings", L"IncludeCacheRead", buf, iniPath.c_str());
         WritePrivateProfileStringW(L"Settings", L"CachePath", cachePath, iniPath.c_str());
     }
 };

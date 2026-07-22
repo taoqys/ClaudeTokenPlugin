@@ -16,6 +16,7 @@
 #define IDC_CHECK_TOOLTIP   1004
 #define IDC_EDIT_CACHEPATH  1005
 #define IDC_EDIT_REFRESH    1006
+#define IDC_CHECK_CACHEREAD 1007
 
 // Extended dialog template structures (not in standard headers)
 #pragma pack(push, 1)
@@ -150,7 +151,7 @@ void ClaudeTokenPlugin::LoadCache()
 
     std::string today = GetTodayDate();
 
-    long long totalInput = 0, totalOutput = 0, totalCache = 0, totalMsgs = 0;
+    long long totalInput = 0, totalOutput = 0, totalCache = 0, totalCacheCreation = 0, totalMsgs = 0;
 
     size_t dailyPos = content.find("\"daily\"");
     if (dailyPos == std::string::npos) return;
@@ -189,6 +190,7 @@ void ClaudeTokenPlugin::LoadCache()
             totalInput += ExtractIntValue(valObj, "input");
             totalOutput += ExtractIntValue(valObj, "output");
             totalCache += ExtractIntValue(valObj, "cache_read");
+            totalCacheCreation += ExtractIntValue(valObj, "cache_creation");
             totalMsgs += ExtractIntValue(valObj, "count");
 
             pos = valEnd + 1;
@@ -234,7 +236,10 @@ void ClaudeTokenPlugin::LoadCache()
     m_rawCache = totalCache;
     m_rawMessages = totalMsgs;
 
-    long long grandTotal = totalInput + totalOutput + totalCache;
+    // Total = input + output + cache_creation (cache_read excluded by default as it's not billable)
+    long long grandTotal = totalInput + totalOutput + totalCacheCreation;
+    if (m_settings.includeCacheRead)
+        grandTotal += totalCache;
 
     m_items[ClaudeTokenItem::ITEM_TOTAL].SetValue(grandTotal);
     m_items[ClaudeTokenItem::ITEM_INPUT].SetValue(totalInput);
@@ -247,8 +252,8 @@ void ClaudeTokenPlugin::LoadCache()
     {
         wchar_t tooltip[512];
         swprintf_s(tooltip,
-            L"Claude Token Usage\nTotal: %lld\nInput: %lld\nOutput: %lld\nCache Read: %lld\nMessages: %lld",
-            grandTotal, totalInput, totalOutput, totalCache, totalMsgs);
+            L"Claude Token Usage\nTotal: %lld\nInput: %lld\nOutput: %lld\nCache Read: %lld\nCache Write: %lld\nMessages: %lld",
+            grandTotal, totalInput, totalOutput, totalCache, totalCacheCreation, totalMsgs);
         m_tooltipInfo = tooltip;
     }
     else
@@ -288,6 +293,7 @@ INT_PTR CALLBACK ClaudeTokenPlugin::DialogProc(HWND hDlg, UINT msg, WPARAM wPara
         // Checkboxes
         CheckDlgButton(hDlg, IDC_CHECK_LABEL, pSettings->showLabel ? BST_CHECKED : BST_UNCHECKED);
         CheckDlgButton(hDlg, IDC_CHECK_TOOLTIP, pSettings->showTooltipDetail ? BST_CHECKED : BST_UNCHECKED);
+        CheckDlgButton(hDlg, IDC_CHECK_CACHEREAD, pSettings->includeCacheRead ? BST_CHECKED : BST_UNCHECKED);
 
         // Cache path
         SetDlgItemTextW(hDlg, IDC_EDIT_CACHEPATH, pSettings->cachePath);
@@ -309,6 +315,7 @@ INT_PTR CALLBACK ClaudeTokenPlugin::DialogProc(HWND hDlg, UINT msg, WPARAM wPara
             pSettings->numberFormat = (int)SendMessageW(GetDlgItem(hDlg, IDC_COMBO_FORMAT), CB_GETCURSEL, 0, 0);
             pSettings->showLabel = IsDlgButtonChecked(hDlg, IDC_CHECK_LABEL) == BST_CHECKED ? 1 : 0;
             pSettings->showTooltipDetail = IsDlgButtonChecked(hDlg, IDC_CHECK_TOOLTIP) == BST_CHECKED ? 1 : 0;
+            pSettings->includeCacheRead = IsDlgButtonChecked(hDlg, IDC_CHECK_CACHEREAD) == BST_CHECKED ? 1 : 0;
             GetDlgItemTextW(hDlg, IDC_EDIT_CACHEPATH, pSettings->cachePath, MAX_PATH);
 
             // Read refresh interval
@@ -450,7 +457,10 @@ ITMPlugin::OptionReturn ClaudeTokenPlugin::ShowOptionsDialog(void* hParent)
     addControl(BS_AUTOCHECKBOX, 0, 7, 50, 120, 12, IDC_CHECK_LABEL, 0x0080, L"Show label text");
 
     // Checkbox: Show Tooltip Detail
-    addControl(BS_AUTOCHECKBOX, 0, 7, 68, 120, 12, IDC_CHECK_TOOLTIP, 0x0080, L"Show detailed tooltip");
+    addControl(BS_AUTOCHECKBOX, 0, 130, 50, 120, 12, IDC_CHECK_TOOLTIP, 0x0080, L"Show detailed tooltip");
+
+    // Checkbox: Include cache_read in total
+    addControl(BS_AUTOCHECKBOX, 0, 7, 68, 180, 12, IDC_CHECK_CACHEREAD, 0x0080, L"Include cache_read in total");
 
     // Edit: Custom cache path
     addControl(ES_AUTOHSCROLL | WS_BORDER, 0,
@@ -488,6 +498,7 @@ ITMPlugin::OptionReturn ClaudeTokenPlugin::ShowOptionsDialog(void* hParent)
                         tempSettings.showLabel != m_settings.showLabel ||
                         tempSettings.showTooltipDetail != m_settings.showTooltipDetail ||
                         tempSettings.refreshInterval != m_settings.refreshInterval ||
+                        tempSettings.includeCacheRead != m_settings.includeCacheRead ||
                         wcscmp(tempSettings.cachePath, m_settings.cachePath) != 0);
 
         m_settings = tempSettings;
