@@ -22,7 +22,7 @@ private:
     ClaudeTokenPlugin(const ClaudeTokenPlugin&) = delete;
     ClaudeTokenPlugin& operator=(const ClaudeTokenPlugin&) = delete;
 
-    void LoadCache();
+    void ScanAndUpdate();
     void ApplySettings();
 
     // All 5 possible display items
@@ -40,17 +40,18 @@ private:
     ITrafficMonitor* m_pApp{};
     std::wstring m_tooltipInfo;
     std::wstring m_iniPath;
+    std::wstring m_projectsDir;
 
-    // Raw data from cache
-    long long m_rawInput{};
-    long long m_rawOutput{};
-    long long m_rawCache{};
-    long long m_rawMessages{};
+    // Aggregated data
+    long long m_totalInput{};
+    long long m_totalOutput{};
+    long long m_totalCacheRead{};
+    long long m_totalCacheCreation{};
+    int m_totalMessages{};
 
     PluginSettings m_settings;
 
     // Refresh interval tracking
-    int m_tickCount = 0;
     DWORD m_lastRefreshTime = 0;
 
     // Dialog callback

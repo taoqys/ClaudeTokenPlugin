@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(ClaudeTokenPlugin SHARED
     src/ClaudeTokenPlugin.cpp
     src/ClaudeTokenItem.cpp
+    src/JsonlScanner.cpp
 )
 
 target_include_directories(ClaudeTokenPlugin PRIVATE src)
