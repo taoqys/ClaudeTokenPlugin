@@ -111,6 +111,31 @@ std::vector<std::wstring> JsonlScanner::GlobJsonl(const std::wstring& dir)
     return result;
 }
 
+// Debug log helper
+static void DebugLog(const char* msg)
+{
+    static bool first = true;
+    wchar_t logPath[MAX_PATH]{};
+    GetEnvironmentVariableW(L"USERPROFILE", logPath, MAX_PATH);
+    wcscat_s(logPath, L"\\.claude\\plugin-debug.log");
+    HANDLE hFile = CreateFileW(logPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                               first ? CREATE_ALWAYS : OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE) return;
+    SetFilePointer(hFile, 0, nullptr, FILE_END);
+    DWORD written;
+    WriteFile(hFile, msg, (DWORD)strlen(msg), &written, nullptr);
+    WriteFile(hFile, "\r\n", 2, &written, nullptr);
+    CloseHandle(hFile);
+    first = false;
+}
+
+static void DebugLogW(const wchar_t* msg)
+{
+    char buf[512]{};
+    WideCharToMultiByte(CP_UTF8, 0, msg, -1, buf, 512, nullptr, nullptr);
+    DebugLog(buf);
+}
+
 // Scan a single JSONL file with deduplication
 void JsonlScanner::ScanFile(const std::wstring& filepath, const std::string& today,
                              std::map<std::string, TokenStats>& daily,
@@ -120,12 +145,16 @@ void JsonlScanner::ScanFile(const std::wstring& filepath, const std::string& tod
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open())
     {
-        // Try UTF-8 conversion
         char buf[MAX_PATH]{};
         WideCharToMultiByte(CP_UTF8, 0, filepath.c_str(), -1, buf, MAX_PATH, nullptr, nullptr);
         file.open(buf, std::ios::binary);
     }
-    if (!file.is_open()) return;
+    if (!file.is_open())
+    {
+        DebugLogW((L"Cannot open: " + filepath).c_str());
+        return;
+    }
+    DebugLogW((L"Scanning: " + filepath).c_str());
 
     std::string line;
     while (std::getline(file, line))
@@ -227,7 +256,13 @@ DailyMap JsonlScanner::ScanAll(const std::wstring& projectsDir)
     DailyMap daily;
     std::map<std::string, std::pair<std::string, TokenStats>> seen;
 
+    DebugLog("=== ScanAll start ===");
+    DebugLogW((L"Dir: " + projectsDir).c_str());
+    DebugLog(("Today: " + today).c_str());
+
     auto files = GlobJsonl(projectsDir);
+    DebugLog(("Files found: " + std::to_string(files.size())).c_str());
+
     for (const auto& f : files)
     {
         ScanFile(f, today, daily, seen);
@@ -238,7 +273,16 @@ DailyMap JsonlScanner::ScanAll(const std::wstring& projectsDir)
     for (auto& [key, stats] : daily)
     {
         if (stats.count > 0)
+        {
             result[key] = stats;
+            DebugLog(("Result: " + key + " msgs=" + std::to_string(stats.count) +
+                       " input=" + std::to_string(stats.input) +
+                       " output=" + std::to_string(stats.output) +
+                       " cacheR=" + std::to_string(stats.cacheRead)).c_str());
+        }
     }
+
+    DebugLog(("Total entries: " + std::to_string(result.size())).c_str());
+    DebugLog("=== ScanAll end ===");
     return result;
 }
