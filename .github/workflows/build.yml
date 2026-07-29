@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
@@ -16,13 +19,38 @@ jobs:
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Build with CMake
+    - name: Configure with CMake
+      run: cmake -S . -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCLAUDE_TOKEN_PLUGIN_BUILD_TESTS=ON
+
+    - name: Build
+      run: cmake --build build --parallel
+
+    - name: Run CTest
+      run: ctest --test-dir build --output-on-failure
+
+    - name: Stage DLL artifact
+      shell: pwsh
       run: |
-        cmake -B build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
-        cmake --build build
+        $buildRoot = Join-Path $env:GITHUB_WORKSPACE 'build'
+        $destination = Join-Path $buildRoot 'bin\ClaudeTokenPlugin.dll'
+        $matches = @(
+          Get-ChildItem -LiteralPath $buildRoot -Recurse -File -Filter 'ClaudeTokenPlugin.dll'
+        )
+
+        if ($matches.Count -ne 1) {
+          Write-Host "Expected exactly one ClaudeTokenPlugin.dll under build; found $($matches.Count)."
+          $matches | Select-Object -ExpandProperty FullName
+          throw 'DLL output is ambiguous or missing.'
+        }
+
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+        if ([IO.Path]::GetFullPath($matches[0].FullName) -ne [IO.Path]::GetFullPath($destination)) {
+          Copy-Item -LiteralPath $matches[0].FullName -Destination $destination -Force
+        }
 
     - name: Upload DLL
       uses: actions/upload-artifact@v4
       with:
         name: ClaudeTokenPlugin
         path: build/bin/ClaudeTokenPlugin.dll
+        if-no-files-found: error
